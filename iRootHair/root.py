@@ -16,19 +16,19 @@ class Root(Skeleton):
         self.root_tip_x, self.root_tip_y = None, None
         self.final_labeled_root = None
         self.final_root_mask = (self.straight_mask == 2)
-        self.final_rh_mask = (self.straight_mask == 1)
+        self.final_rh_mask = np.logical_or(self.straight_mask > 0.4, self.straight_mask <= 1)
 
 
-    def check_root_tip(self, conn: int) -> None:
+    def check_root_tip(self) -> None:
         """
         Check whether root tip is present in root mask
         
         """
-        self.final_labeled_root, _ = label(self.final_root_mask, connectivity=conn, return_num=True)
+        self.final_labeled_root, _ = label(self.final_root_mask, connectivity=2, return_num=True)
         root_measured = regionprops(self.final_labeled_root) # measure cleaned root
         coords = [i.coords for i in root_measured][0] # get all coords of masked cleaned root
         max_root_y_coord = max(coords[:,0]) # get max y-coord of cleaned root
-        image_height = self.image.shape[0] # get height of the image
+        image_height = self.straight_mask.shape[0] # get height of the image
         
         if image_height - max_root_y_coord > 1: # if > 1 px difference between image height and max y of root
             self.found_tip = True 
@@ -59,16 +59,15 @@ class Root(Skeleton):
         
             self.root_tip_y, self.root_tip_x = root_tip 
 
-    def trim_rh_mask(self, conn: int, crit: int ,factor: int) -> 'NDArray':
+    def trim_rh_mask(self,crit: int) -> 'NDArray':
         """
         Remove fragments from root hair mask, and remove any non-primary root hair masks
         """
 
-        crit = crit // factor
-
+        
         small_mask = remove_small_objects(self.final_rh_mask, min_size=crit)
 
-        root_hairs, count = label(small_mask, connectivity=conn, return_num=True)
+        root_hairs, count = label(small_mask, connectivity=2, return_num=True)
 
         if count > 2: # indicates non-primary root hair sections in mask
             check_root_hair = regionprops(root_hairs) # measure area of root hair masks
@@ -79,7 +78,7 @@ class Root(Skeleton):
             
             small_mask = np.logical_or(root_hairs == area_1_label, root_hairs == area_2_label)
             
-            root_hairs, _ = label(small_mask, connectivity=conn, return_num=True) 
+            root_hairs, _ = label(small_mask, connectivity=2, return_num=True) 
 
 
         return root_hairs

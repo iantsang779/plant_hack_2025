@@ -46,7 +46,7 @@ class GetParams(Root):
 
                 bin_end = bin_start + height_bin_size # calculate bin end
                 rh_segment = segment_mask[bin_start:bin_end, :] # define mask for sliding window for root hairs
-                _, rh_segment_measured = self.clean_root_chunk(rh_segment, conn) 
+                _, rh_segment_measured = self.clean_root_chunk(rh_segment) 
                 rh_segment_area = [segment['area'] for segment in rh_segment_measured] # area of each segment
 
                 for region in rh_segment_measured: # for each root hair section on either side of the root
@@ -93,11 +93,10 @@ class GetParams(Root):
         # unpack tuples back into lists for each, now all of equal length 
         self.horizontal_rh_list_1, self.horizontal_rh_list_2, self.rh_area_list_1, self.rh_area_list_2, self.bin_list = map(list, zip(*pad_lists))
 
-    def calibrate_data(self, conv: int, factor: int) -> None:
+    def calibrate_data(self, conv: int) -> None:
         """
         Convert pixel data into mm via a conversion factor.
         """
-        conv = conv // factor
 
         def _check_zeros(value, conv) -> float: # helper function to avoid dividing by zero 
             return value / conv if value != 0 else 0

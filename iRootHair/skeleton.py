@@ -21,34 +21,33 @@ class Skeleton(Preprocess):
         self.new_buffer_coords = None
         self.final_rh_mask, self.final_root_mask = None, None
 
-    def clean_root_chunk(self, mask: 'NDArray', conn:int) -> tuple[NDArray, list]:
+    def clean_root_chunk(self, mask: 'NDArray') -> tuple[NDArray, list]:
         """
         Clean up each small section of the root mask by removing all but the largest area present
         """
 
-        root_section_labeled, _ = label(mask, connectivity=conn, return_num=True) # label the root mask
+        root_section_labeled, _ = label(mask, connectivity=2, return_num=True) # label the root mask
         root_section_measured = regionprops(root_section_labeled) # measure the root section 
         max_label = max(root_section_measured, key=lambda x: x.area).label # get the label associated with the largest area in the measured section
         
         # mask out the smaller sections, retaining only the largest section
         self.clean_root_mask = root_section_labeled == max_label 
-        root_section_labeled, _ = label(self.clean_root_mask, connectivity=conn, return_num=True) # re label root 
+        root_section_labeled, _ = label(self.clean_root_mask, connectivity=2, return_num=True) # re label root 
         root_section_measured = regionprops(root_section_labeled) # re measure root section
 
         return root_section_labeled, root_section_measured
     
-    def extract_root(self, root_mask: 'NDArray', conn: int, crit: int, factor: int) -> 'NDArray':
+    def extract_root(self, root_mask: 'NDArray', crit: int) -> 'NDArray':
         """
         Filter out non-primary root sections from root mask
         """
-        root_crit = crit // factor
                         
-        root_mask_small = remove_small_objects(root_mask, min_size=root_crit) # remove small fragments
+        root_mask_small = remove_small_objects(root_mask, min_size=crit) # remove small fragments
        
-        root_labeled_cleaned, root_count_cleaned = label(root_mask_small, connectivity=conn, return_num=True) # re check num objects
+        root_labeled_cleaned, root_count_cleaned = label(root_mask_small, connectivity=2, return_num=True) # re check num objects
 
         if root_count_cleaned > 1: # if more than 1 root is present    
-            root_labeled_cleaned, _ = self.clean_root_chunk(root_mask_small, conn)
+            root_labeled_cleaned, _ = self.clean_root_chunk(root_mask_small)
 
         return root_labeled_cleaned
 
@@ -104,8 +103,10 @@ class Skeleton(Preprocess):
         angle = np.rad2deg(np.arctan(dx/dy))
         
         rotated_root_mask = rotate(root_mask, angle, preserve_range=True, mode='symmetric')
-        
-        return rotated_root_mask
+
+        rotated_root_label, _ = self.clean_root_chunk(rotated_root_mask)
+
+        return rotated_root_label
    
     def add_endpoints(self, med_x: 'NDArray', med_y: 'NDArray') -> None:
         """
@@ -183,16 +184,16 @@ class Skeleton(Preprocess):
         ax.legend()
 
 
-    def straighten_image(self, init_mask: 'NDArray') -> None:
+    def straighten_image(self, rotated_mask: 'NDArray') -> None:
         """
         Use piecewise affine transformation to straighten the root
         """
         tform = PiecewiseAffineTransform()
         tform.estimate(self.new_buffer_coords,self.old_buffer_coords)
 
-        final_image = warp(init_mask, tform, mode='symmetric')
+        straight_mask = warp(rotated_mask, tform, mode='symmetric')
 
-        return final_image
+        return straight_mask
 
 
 
